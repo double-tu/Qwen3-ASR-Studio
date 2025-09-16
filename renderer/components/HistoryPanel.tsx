@@ -27,15 +27,15 @@ const formatTimestamp = (timestamp: number) => {
 };
 
 export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items, onDelete, onRestore, onError, disabled }) => {
-  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [copiedState, setCopiedState] = useState<{ id: number; type: 'original' | 'corrected' } | null>(null);
 
-  const handleCopy = async (item: HistoryItem) => {
-    if (!item.transcription) return;
+  const handleCopy = async (textToCopy: string, itemId: number, type: 'original' | 'corrected') => {
+    if (!textToCopy) return;
     try {
-      await navigator.clipboard.writeText(item.transcription);
-      setCopiedId(item.id);
+      await navigator.clipboard.writeText(textToCopy);
+      setCopiedState({ id: itemId, type });
       setTimeout(() => {
-          setCopiedId(currentId => (currentId === item.id ? null : currentId));
+          setCopiedState(currentState => (currentState?.id === itemId && currentState.type === type ? null : currentState));
       }, 2000);
     } catch (err) {
       console.error("Failed to copy from history:", err);
@@ -55,9 +55,21 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items, onDelete, onR
           <div className="space-y-3 h-full overflow-y-auto pr-2">
             {items.map((item) => (
               <div key={item.id} className="p-3 rounded-md bg-base-100 border border-base-300">
-                <p className="text-sm text-content-100 break-words mb-2">
-                  {item.transcription.length > 80 ? `${item.transcription.substring(0, 80)}...` : item.transcription || '（无识别结果）'}
-                </p>
+                {item.originalTranscription && (
+                  <div className="mb-2">
+                    <p className="text-xs text-content-200 mb-1">原文:</p>
+                    <p className="text-sm text-content-100 break-words">
+                      {item.originalTranscription}
+                    </p>
+                  </div>
+                )}
+                <div className="mb-2">
+                   <p className="text-xs text-content-200 mb-1">{item.originalTranscription ? '修正后:' : '识别结果:'}</p>
+                   <p className="text-sm text-content-100 break-words font-medium">
+                     {item.transcription || '（无识别结果）'}
+                   </p>
+                </div>
+
                 <div className="flex items-center justify-between text-xs text-content-200">
                   <div className="flex flex-col gap-1 min-w-0">
                     <span className="truncate" title={item.fileName}>{item.fileName}</span>
@@ -80,23 +92,38 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items, onDelete, onR
                     >
                       <RestoreIcon className="w-4 h-4" />
                     </button>
+
+                    {item.originalTranscription && (
+                      <button
+                        onClick={() => handleCopy(item.originalTranscription!, item.id, 'original')}
+                        disabled={disabled}
+                        title={copiedState?.id === item.id && copiedState?.type === 'original' ? "已复制原文" : "复制原文"}
+                        aria-label="复制原文"
+                        className={`p-1 rounded-full transition-colors duration-200 disabled:opacity-50 ${
+                          copiedState?.id === item.id && copiedState?.type === 'original'
+                            ? 'text-brand-primary'
+                            : 'text-content-200 hover:bg-base-300/50 hover:text-content-100'
+                        }`}
+                      >
+                        {copiedState?.id === item.id && copiedState?.type === 'original' ? <CheckIcon className="w-4 h-4" /> : <CopyIcon className="w-4 h-4" />}
+                      </button>
+                    )}
+
                     <button
-                      onClick={() => handleCopy(item)}
+                      onClick={() => handleCopy(item.transcription, item.id, 'corrected')}
                       disabled={disabled || !item.transcription}
-                      title={copiedId === item.id ? "已复制" : "复制"}
+                      title={copiedState?.id === item.id && copiedState?.type === 'corrected' ? "已复制" : "复制" + (item.originalTranscription ? "修正文" : "结果")}
                       aria-label="复制识别结果"
                       className={`p-1 rounded-full transition-colors duration-200 disabled:opacity-50 ${
-                        copiedId === item.id
+                        copiedState?.id === item.id && copiedState?.type === 'corrected'
                           ? 'text-brand-primary'
+                          // A little visual separation if both copy buttons are present
                           : 'text-content-200 hover:bg-base-300/50 hover:text-content-100'
                       }`}
                     >
-                      {copiedId === item.id ? (
-                        <CheckIcon className="w-4 h-4" />
-                      ) : (
-                        <CopyIcon className="w-4 h-4" />
-                      )}
+                      {copiedState?.id === item.id && copiedState?.type === 'corrected' ? <CheckIcon className="w-4 h-4" /> : <CopyIcon className="w-4 h-4" />}
                     </button>
+
                     <button
                       onClick={() => onDelete(item.id)}
                       disabled={disabled}

@@ -33,6 +33,7 @@ export interface HistoryItem {
   id: number;
   fileName: string;
   transcription: string;
+  originalTranscription?: string;
   detectedLanguage: string;
   context: string;
   timestamp: number;

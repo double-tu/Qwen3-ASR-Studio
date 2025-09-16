@@ -55,6 +55,7 @@ export async function getFileHash(file: File): Promise<string> {
 // Transcription Cache
 interface CachedTranscription {
   transcription: string;
+  originalTranscription?: string;
   detectedLanguage: string;
 }
 

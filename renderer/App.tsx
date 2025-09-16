@@ -97,7 +97,7 @@ export default function App() {
   });
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>(() => localStorage.getItem('selectedDeviceId') || 'default');
-  
+
   // API Provider state
   const [apiProvider, setApiProvider] = useState<ApiProvider>(() => (localStorage.getItem('apiProvider') as ApiProvider | null) || ApiProvider.MODELSCOPE);
   const [modelScopeApiUrl, setModelScopeApiUrl] = useState<string>(() => localStorage.getItem('modelScopeApiUrl') || DEFAULT_MODELSCOPE_API_URL);
@@ -155,7 +155,7 @@ export default function App() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop());
-        
+
         const devices = await navigator.mediaDevices.enumerateDevices();
         const audioInputDevices = devices.filter(device => device.kind === 'audioinput');
         setAudioDevices(audioInputDevices);
@@ -165,7 +165,7 @@ export default function App() {
     };
     getAudioDevices();
   }, []);
-  
+
   const handleInstallApp = () => {
     if (!installPrompt) {
         handleError("安装失败，无法找到安装提示。");
@@ -192,7 +192,7 @@ export default function App() {
     setAudioFile(null);
     setTranscription('');
     setDetectedLanguage('');
-    
+
     const onProgress = (message: string) => {
       setLoadingMessage(message);
     };
@@ -296,12 +296,12 @@ export default function App() {
     audioFile: File;
   }) => {
     setAudioFile(result.audioFile);
-    
+
     if (transcriptionMode === 'single') {
       setTranscription(result.transcription);
       setDetectedLanguage(result.detectedLanguage);
     } else {
-      const prefix = transcription.length > 0 && !/[\s\n]$/.test(transcription) ? ' ' : '';
+      const prefix = transcription.length > 0 && !/\s$/.test(transcription) ? ' ' : '';
       resultDisplayRef.current?.insertText(prefix + result.transcription);
       setDetectedLanguage('');
     }
@@ -410,21 +410,21 @@ export default function App() {
       handleError('没有提供音频文件。');
       return;
     }
-    
+
     abortControllerRef.current?.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
-    
+
     setIsLoading(true);
     setNotification(null);
     setElapsedTime(null);
     const localStartTime = Date.now();
-    
+
     if (transcriptionMode === 'single') {
         setTranscription('');
         setDetectedLanguage('');
     }
-    
+
     const onProgress = (message: string) => {
       setLoadingMessage(message);
     };
@@ -432,17 +432,19 @@ export default function App() {
     try {
       const hash = await getFileHash(file);
       const cachedResult = bypassCache ? null : await getCachedTranscription(hash);
-      
+
       let finalTranscription: string;
+      let originalTranscription: string | undefined;
       let finalLanguage: string;
 
       if (cachedResult) {
         finalTranscription = cachedResult.transcription;
+        originalTranscription = cachedResult.originalTranscription;
         finalLanguage = cachedResult.detectedLanguage;
 
-        if (autoCopy && cachedResult.transcription) {
+        if (autoCopy && finalTranscription) {
           try {
-            await navigator.clipboard.writeText(cachedResult.transcription);
+            await navigator.clipboard.writeText(finalTranscription);
             setNotification({ message: '识别结果已从缓存加载并复制', type: 'success' });
           } catch (copyError) {
             console.error('Failed to auto-copy cached result:', copyError);
@@ -455,25 +457,28 @@ export default function App() {
           onProgress('正在压缩音频（如果需要）...');
           const fileToTranscribe = await compressAudio(file, compressionLevel);
           const result = await transcribeAudio(
-            fileToTranscribe, 
-            context, 
-            language, 
-            enableItn, 
-            { provider: apiProvider, modelScopeApiUrl, bailianApiKey }, 
-            onProgress, 
+            fileToTranscribe,
+            context,
+            language,
+            enableItn,
+            { provider: apiProvider, modelScopeApiUrl, bailianApiKey },
+            onProgress,
             controller.signal
           );
-          finalTranscription = result.transcription;
+
+          originalTranscription = result.transcription;
+          finalLanguage = result.detectedLanguage;
+          finalTranscription = originalTranscription;
 
           console.log('Checking LLM correction conditions...');
           console.log('LLM API Key:', llmApiKey ? '******' : 'Not set');
           console.log('LLM Prompt:', llmPrompt || 'Not set');
 
-          if (llmApiKey && llmPrompt) {
+          if (llmApiKey && llmPrompt && originalTranscription) {
             onProgress('正在使用 LLM 修正结果...');
             try {
               console.log('Calling LLM for correction...');
-              finalTranscription = await correctTranscription(result.transcription, {
+              finalTranscription = await correctTranscription(originalTranscription, {
                 provider: llmProvider,
                 baseUrl: llmBaseUrl,
                 modelName: llmModelName,
@@ -484,24 +489,22 @@ export default function App() {
             } catch (llmError) {
               console.error("LLM correction failed:", llmError);
               handleError(`LLM 修正失败: ${llmError instanceof Error ? llmError.message : String(llmError)}`);
-              // Non-fatal, continue with the original transcription
             }
           } else {
-            console.log('Skipping LLM correction because API Key or Prompt is not set.');
+            console.log('Skipping LLM correction because API Key, Prompt or original transcription is not set.');
           }
 
-          finalLanguage = result.detectedLanguage;
-
-          if (result.transcription) {
+          if (originalTranscription) {
             await setCachedTranscription(hash, {
-              transcription: result.transcription,
-              detectedLanguage: result.detectedLanguage,
+              transcription: finalTranscription,
+              originalTranscription: originalTranscription,
+              detectedLanguage: finalLanguage,
             });
           }
 
-          if (autoCopy && result.transcription) {
+          if (autoCopy && finalTranscription) {
             try {
-              await navigator.clipboard.writeText(result.transcription);
+              await navigator.clipboard.writeText(finalTranscription);
               setNotification({ message: '识别结果已复制到剪贴板', type: 'success' });
             } catch (copyError) {
               console.error('Failed to auto-copy new result:', copyError);
@@ -509,12 +512,12 @@ export default function App() {
             }
           }
       }
-      
+
       if (transcriptionMode === 'single') {
         setTranscription(finalTranscription);
         setDetectedLanguage(finalLanguage);
       } else {
-        const prefix = transcription.length > 0 && !/[\s\n]$/.test(transcription) ? ' ' : '';
+        const prefix = transcription.length > 0 && !/\s$/.test(transcription) ? ' ' : '';
         resultDisplayRef.current?.insertText(prefix + finalTranscription);
         setDetectedLanguage('');
       }
@@ -524,6 +527,7 @@ export default function App() {
           id: Date.now(),
           fileName: file.name,
           transcription: finalTranscription,
+          originalTranscription: originalTranscription && originalTranscription !== finalTranscription ? originalTranscription : undefined,
           detectedLanguage: finalLanguage,
           context,
           timestamp: Date.now(),
@@ -565,11 +569,11 @@ export default function App() {
       handleError('请先上传或录制一段音频。');
       return;
     }
-    
+
     transcribeNow(audioFile, false);
 
   }, [audioFile, isRecording, transcribeNow, handleError]);
-  
+
   const handleCancel = useCallback(() => {
     abortControllerRef.current?.abort();
   }, []);
@@ -592,7 +596,7 @@ export default function App() {
       transcribeNow(audioFile, true);
     }
   }, [audioFile, transcribeNow]);
-  
+
   useEffect(() => {
     if (transcribeAfterRecording && audioFile && !isRecording) {
       setTranscribeAfterRecording(false);
@@ -610,7 +614,7 @@ export default function App() {
       if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName) || target.isContentEditable) {
         return;
       }
-      
+
       event.preventDefault();
 
       if (!isRecording && !isLoading) {
@@ -623,7 +627,7 @@ export default function App() {
       if (event.code !== 'Space' || !isSpaceDown.current) {
         return;
       }
-      
+
       event.preventDefault();
       isSpaceDown.current = false;
 
@@ -693,7 +697,7 @@ export default function App() {
     setLlmModelName('');
     setLlmApiKey('');
     setLlmPrompt('');
-    
+
     setIsSettingsOpen(false);
     setNotification({ message: '已恢复默认设置', type: 'success' });
   }, []);
@@ -739,7 +743,7 @@ export default function App() {
 
   const handleRestoreNote = (item: NoteItem) => {
     setTranscriptionMode('notes');
-    const prefix = transcription.length > 0 && !/[\s\n]$/.test(transcription) ? '\n\n' : '';
+    const prefix = transcription.length > 0 && !/\s$/.test(transcription) ? ' ' : '';
     setTranscription(prev => prev + prefix + item.content);
     setNotification({ message: '已从笔记恢复内容', type: 'success' });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -751,7 +755,7 @@ export default function App() {
         <Header onSettingsClick={() => setIsSettingsOpen(true)} onPipClick={togglePip} />
         <main className="mt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-            
+
             <div className="md:col-start-1 md:row-start-1">
               <AudioPreview
                 file={audioFile}
@@ -759,7 +763,7 @@ export default function App() {
                 disabled={isLoading}
               />
             </div>
-            
+
             <div className="flex flex-col md:col-start-2 md:row-start-1 md:row-span-2">
                <ResultDisplay
                 ref={resultDisplayRef}
@@ -830,7 +834,7 @@ export default function App() {
             </div>
 
             <div className="md:col-start-1 md:row-start-2">
-              <AudioUploader 
+              <AudioUploader
                 ref={audioUploaderRef}
                 onFileChange={handleFileChange}
                 onRecordingChange={setIsRecording}
@@ -860,7 +864,7 @@ export default function App() {
                 disabled={isLoading}
               />
             </div>
-            
+
             <div className="md:col-span-2">
               <ExampleButtons onLoadExample={handleLoadExample} disabled={isLoading} />
             </div>
