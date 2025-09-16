@@ -5,8 +5,9 @@ import { Header } from './components/Header';
 import { AudioUploader, type AudioUploaderHandle } from './components/AudioUploader';
 import { ResultDisplay, type ResultDisplayHandle } from './components/ResultDisplay';
 import { ExampleButtons } from './components/ExampleButtons';
+import { correctTranscription } from './services/llmService';
 import { transcribeAudio, loadExample } from './services/gradioService';
-import { Language, CompressionLevel, HistoryItem, NoteItem, ApiProvider } from './types';
+import { Language, CompressionLevel, HistoryItem, NoteItem, ApiProvider, LlmProvider } from './types';
 import { Toast } from './components/Toast';
 import { LoaderIcon } from './components/icons/LoaderIcon';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -101,6 +102,14 @@ export default function App() {
   const [apiProvider, setApiProvider] = useState<ApiProvider>(() => (localStorage.getItem('apiProvider') as ApiProvider | null) || ApiProvider.MODELSCOPE);
   const [modelScopeApiUrl, setModelScopeApiUrl] = useState<string>(() => localStorage.getItem('modelScopeApiUrl') || DEFAULT_MODELSCOPE_API_URL);
   const [bailianApiKey, setBailianApiKey] = useState<string>(() => localStorage.getItem('bailianApiKey') || '');
+
+  // LLM state
+  const [llmProvider, setLlmProvider] = useState<LlmProvider>(() => (localStorage.getItem('llmProvider') as LlmProvider | null) || LlmProvider.OPENAI);
+  const [llmBaseUrl, setLlmBaseUrl] = useState<string>(() => localStorage.getItem('llmBaseUrl') || '');
+  const [llmModelName, setLlmModelName] = useState<string>(() => localStorage.getItem('llmModelName') || '');
+  const [llmApiKey, setLlmApiKey] = useState<string>(() => localStorage.getItem('llmApiKey') || '');
+  const [llmPrompt, setLlmPrompt] = useState<string>(() => localStorage.getItem('llmPrompt') || '');
+
 
 
   // PWA install state
@@ -244,6 +253,14 @@ export default function App() {
   useEffect(() => { localStorage.setItem('apiProvider', apiProvider); }, [apiProvider]);
   useEffect(() => { localStorage.setItem('modelScopeApiUrl', modelScopeApiUrl); }, [modelScopeApiUrl]);
   useEffect(() => { localStorage.setItem('bailianApiKey', bailianApiKey); }, [bailianApiKey]);
+
+  // Effects to manage LLM settings persistence
+  useEffect(() => { localStorage.setItem('llmProvider', llmProvider); }, [llmProvider]);
+  useEffect(() => { localStorage.setItem('llmBaseUrl', llmBaseUrl); }, [llmBaseUrl]);
+  useEffect(() => { localStorage.setItem('llmModelName', llmModelName); }, [llmModelName]);
+  useEffect(() => { localStorage.setItem('llmApiKey', llmApiKey); }, [llmApiKey]);
+  useEffect(() => { localStorage.setItem('llmPrompt', llmPrompt); }, [llmPrompt]);
+
 
   useEffect(() => {
     if (copied) {
@@ -447,6 +464,32 @@ export default function App() {
             controller.signal
           );
           finalTranscription = result.transcription;
+
+          console.log('Checking LLM correction conditions...');
+          console.log('LLM API Key:', llmApiKey ? '******' : 'Not set');
+          console.log('LLM Prompt:', llmPrompt || 'Not set');
+
+          if (llmApiKey && llmPrompt) {
+            onProgress('正在使用 LLM 修正结果...');
+            try {
+              console.log('Calling LLM for correction...');
+              finalTranscription = await correctTranscription(result.transcription, {
+                provider: llmProvider,
+                baseUrl: llmBaseUrl,
+                modelName: llmModelName,
+                apiKey: llmApiKey,
+                prompt: llmPrompt,
+              });
+              console.log('LLM correction successful.');
+            } catch (llmError) {
+              console.error("LLM correction failed:", llmError);
+              handleError(`LLM 修正失败: ${llmError instanceof Error ? llmError.message : String(llmError)}`);
+              // Non-fatal, continue with the original transcription
+            }
+          } else {
+            console.log('Skipping LLM correction because API Key or Prompt is not set.');
+          }
+
           finalLanguage = result.detectedLanguage;
 
           if (result.transcription) {
@@ -509,7 +552,7 @@ export default function App() {
       const duration = (endTime - localStartTime) / 1000;
       setElapsedTime(duration);
     }
-  }, [context, language, enableItn, autoCopy, compressionLevel, handleError, transcriptionMode, transcription, apiProvider, modelScopeApiUrl, bailianApiKey]);
+  }, [context, language, enableItn, autoCopy, compressionLevel, handleError, transcriptionMode, transcription, apiProvider, modelScopeApiUrl, bailianApiKey, llmProvider, llmBaseUrl, llmModelName, llmApiKey, llmPrompt]);
 
   const handleTranscribe = useCallback(async () => {
     if (isRecording && audioUploaderRef.current) {
@@ -645,6 +688,11 @@ export default function App() {
     setApiProvider(ApiProvider.MODELSCOPE);
     setModelScopeApiUrl(DEFAULT_MODELSCOPE_API_URL);
     setBailianApiKey('');
+    setLlmProvider(LlmProvider.OPENAI);
+    setLlmBaseUrl('');
+    setLlmModelName('');
+    setLlmApiKey('');
+    setLlmPrompt('');
     
     setIsSettingsOpen(false);
     setNotification({ message: '已恢复默认设置', type: 'success' });
@@ -844,6 +892,16 @@ export default function App() {
         setModelScopeApiUrl={setModelScopeApiUrl}
         bailianApiKey={bailianApiKey}
         setBailianApiKey={setBailianApiKey}
+        llmProvider={llmProvider}
+        setLlmProvider={setLlmProvider}
+        llmBaseUrl={llmBaseUrl}
+        setLlmBaseUrl={setLlmBaseUrl}
+        llmModelName={llmModelName}
+        setLlmModelName={setLlmModelName}
+        llmApiKey={llmApiKey}
+        setLlmApiKey={setLlmApiKey}
+        llmPrompt={llmPrompt}
+        setLlmPrompt={setLlmPrompt}
         onClearHistory={handleClearHistory}
         onRestoreDefaults={handleRestoreDefaults}
         canInstall={!!installPrompt}

@@ -1,4 +1,8 @@
 
+export enum LlmProvider {
+  OPENAI = 'openai',
+}
+
 export enum ApiProvider {
   MODELSCOPE = 'modelscope',
   BAILIAN = 'bailian',

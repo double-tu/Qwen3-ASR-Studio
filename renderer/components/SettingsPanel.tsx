@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CloseIcon } from './icons/CloseIcon';
-import { Language, CompressionLevel, ApiProvider } from '../types';
+import { Language, CompressionLevel, ApiProvider, LlmProvider } from '../types';
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -26,6 +26,16 @@ interface SettingsPanelProps {
   setModelScopeApiUrl: (url: string) => void;
   bailianApiKey: string;
   setBailianApiKey: (key: string) => void;
+  llmProvider: LlmProvider;
+  setLlmProvider: (provider: LlmProvider) => void;
+  llmBaseUrl: string;
+  setLlmBaseUrl: (url: string) => void;
+  llmModelName: string;
+  setLlmModelName: (name: string) => void;
+  llmApiKey: string;
+  setLlmApiKey: (key: string) => void;
+  llmPrompt: string;
+  setLlmPrompt: (prompt: string) => void;
   onClearHistory: () => void;
   onRestoreDefaults: () => void;
   disabled?: boolean;
@@ -74,7 +84,7 @@ const compressionLevelDisplayNames: Record<CompressionLevel, string> = {
   [CompressionLevel.MINIMUM]: "最小",
 };
 
-type SettingTab = 'general' | 'transcription' | 'about';
+type SettingTab = 'general' | 'transcription' | 'llm' | 'about';
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   isOpen,
@@ -100,6 +110,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   setModelScopeApiUrl,
   bailianApiKey,
   setBailianApiKey,
+  llmProvider,
+  setLlmProvider,
+  llmBaseUrl,
+  setLlmBaseUrl,
+  llmModelName,
+  setLlmModelName,
+  llmApiKey,
+  setLlmApiKey,
+  llmPrompt,
+  setLlmPrompt,
   onClearHistory,
   onRestoreDefaults,
   disabled,
@@ -248,7 +268,45 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </div>
           </div>
         );
-      case 'about':
+      case 'llm':
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <label className="text-base font-medium">大模型提供商</label>
+              <div className="flex items-center gap-1 p-1 rounded-lg bg-base-100 border border-base-300">
+                <button onClick={() => setLlmProvider(LlmProvider.OPENAI)} className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${llmProvider === LlmProvider.OPENAI ? 'bg-brand-primary text-white' : 'hover:bg-base-300'}`}>OpenAI</button>
+              </div>
+            </div>
+            <div>
+              <label htmlFor="llm-base-url-setting" className="text-base font-medium">
+                Base URL
+                <p className="text-sm text-content-200 font-normal">自定义大模型 API 端点 URL。</p>
+              </label>
+              <input id="llm-base-url-setting" type="text" value={llmBaseUrl} onChange={(e) => setLlmBaseUrl(e.target.value)} disabled={disabled} placeholder="https://api.openai.com/v1" className="mt-2 w-full px-3 py-2 text-sm rounded-md shadow-sm bg-base-100 border border-base-300 text-content-100 placeholder-content-200 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary disabled:opacity-60" />
+            </div>
+            <div>
+              <label htmlFor="llm-model-name-setting" className="text-base font-medium">
+                Model Name
+                <p className="text-sm text-content-200 font-normal">指定要使用的大模型名称。</p>
+              </label>
+              <input id="llm-model-name-setting" type="text" value={llmModelName} onChange={(e) => setLlmModelName(e.target.value)} disabled={disabled} placeholder="gpt-4" className="mt-2 w-full px-3 py-2 text-sm rounded-md shadow-sm bg-base-100 border border-base-300 text-content-100 placeholder-content-200 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary disabled:opacity-60" />
+            </div>
+            <div>
+              <label htmlFor="llm-api-key-setting" className="text-base font-medium">
+                API Key
+                <p className="text-sm text-content-200 font-normal">提供您的 API 密钥。</p>
+              </label>
+              <input id="llm-api-key-setting" type="password" value={llmApiKey} onChange={(e) => setLlmApiKey(e.target.value)} disabled={disabled} placeholder="sk-xxxxxxxxxxxxxxxx" className="mt-2 w-full px-3 py-2 text-sm rounded-md shadow-sm bg-base-100 border border-base-300 text-content-100 placeholder-content-200 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary disabled:opacity-60" />
+            </div>
+            <div>
+              <label htmlFor="llm-prompt-setting" className="text-base font-medium">
+                自定义 Prompt
+                <p className="text-sm text-content-200 font-normal">使用自定义指令来修正识别结果。</p>
+              </label>
+              <textarea id="llm-prompt-setting" rows={5} value={llmPrompt} onChange={(e) => setLlmPrompt(e.target.value)} disabled={disabled} placeholder="你是一个专业的速记员..." className="mt-2 w-full px-3 py-2 text-sm rounded-md shadow-sm bg-base-100 border border-base-300 text-content-100 placeholder-content-200 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary disabled:opacity-60" />
+            </div>
+          </div>
+        );
         return (
           <div className="space-y-4 flex flex-col">
             <img 
@@ -293,6 +351,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <nav className="flex space-x-2 px-8" role="tablist" aria-label="设置">
               <TabButton tabName="general" label="常规" />
               <TabButton tabName="transcription" label="转录" />
+              <TabButton tabName="llm" label="大模型" />
               <TabButton tabName="about" label="关于" />
             </nav>
           </div>

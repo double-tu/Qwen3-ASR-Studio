@@ -1,8 +1,10 @@
 # Dependencies
 .*/node_modules
 .*/renderer/node_modules
+.*/demo
 /node_modules
 /renderer/node_modules
+/demo
 
 # Build output
 .*/dist
