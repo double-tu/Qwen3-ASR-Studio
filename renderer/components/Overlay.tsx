@@ -12,15 +12,15 @@ function formatTime(totalSeconds: number) {
 export function Overlay() {
   const [isRecording, setIsRecording] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [theme, setTheme] = useState<Theme>('light');
+  // The theme logic is no longer needed here as we use explicit styles.
+  // const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
-    // @ts-ignore
     const removeListener = window.electronAPI.on('recording-state-changed', (state) => {
       setIsRecording(state.isRecording);
       if (state.isRecording) {
         setElapsedTime(Math.floor((Date.now() - state.startTime) / 1000));
-        setTheme(state.theme || 'light');
+        // setTheme(state.theme || 'light');
       }
     });
 
@@ -43,6 +43,8 @@ export function Overlay() {
     };
   }, [isRecording]);
 
+  // The theme useEffect is also no longer needed.
+  /*
   useEffect(() => {
     const root = window.document.documentElement;
     if (theme === 'dark') {
@@ -51,17 +53,56 @@ export function Overlay() {
       root.classList.remove('dark');
     }
   }, [theme]);
+  */
 
   if (!isRecording) {
     return null;
   }
 
+  const overlayStyle: React.CSSProperties = {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '1rem',
+    backgroundColor: 'rgba(28, 28, 30, 0.85)', // A semi-transparent dark color
+    backdropFilter: 'blur(10px)', // Frosted glass effect
+    WebkitBackdropFilter: 'blur(10px)', // For Safari
+    borderRadius: '12px',
+    color: 'white',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    boxSizing: 'border-box', // Ensure padding is included in the size
+  };
+
+  const iconStyle: React.CSSProperties = {
+    width: '22px',
+    height: '22px',
+    marginRight: '10px',
+    color: '#0A84FF', // A vibrant blue
+  };
+
+  const textContainerStyle: React.CSSProperties = {
+    fontSize: '17px',
+    display: 'flex',
+    alignItems: 'center',
+  };
+
+  const timeStyle: React.CSSProperties = {
+    fontFamily: 'monospace',
+    marginLeft: '8px',
+    minWidth: '55px',
+    textAlign: 'left',
+    letterSpacing: '0.5px',
+  };
+
+
   return (
-    <div className="w-full h-full flex items-center justify-center p-4 bg-base-100/80 backdrop-blur-sm rounded-lg text-content-100 font-sans">
-      <LoaderIcon className="w-6 h-6 mr-3 text-brand-primary" />
-      <div className="text-lg">
-        <span>正在录音...</span>
-        <span className="font-mono ml-2 tabular-nums w-[60px] text-left">
+    <div style={overlayStyle}>
+      <LoaderIcon style={iconStyle} />
+      <div style={textContainerStyle}>
+        <span>正在录音</span>
+        <span style={timeStyle}>
           {formatTime(elapsedTime)}
         </span>
       </div>
