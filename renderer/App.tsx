@@ -109,6 +109,7 @@ export default function App() {
   const [llmModelName, setLlmModelName] = useState<string>(() => localStorage.getItem('llmModelName') || '');
   const [llmApiKey, setLlmApiKey] = useState<string>(() => localStorage.getItem('llmApiKey') || '');
   const [llmPrompt, setLlmPrompt] = useState<string>(() => localStorage.getItem('llmPrompt') || '');
+  const [shortcut, setShortcut] = useState<string>(() => localStorage.getItem('shortcut') || 'Alt+Q');
 
 
 
@@ -260,14 +261,34 @@ export default function App() {
   useEffect(() => { localStorage.setItem('llmModelName', llmModelName); }, [llmModelName]);
   useEffect(() => { localStorage.setItem('llmApiKey', llmApiKey); }, [llmApiKey]);
   useEffect(() => { localStorage.setItem('llmPrompt', llmPrompt); }, [llmPrompt]);
+  useEffect(() => {
+    localStorage.setItem('shortcut', shortcut);
+    // @ts-ignore
+    window.electronAPI?.send('register-shortcut', shortcut);
+  }, [shortcut]);
 
+
+  const handleShortcut = useCallback(() => {
+    setIsRecording(currentIsRecording => {
+      if (currentIsRecording) {
+        audioUploaderRef.current?.stopRecording();
+        setTranscribeAfterRecording(true);
+      } else {
+        audioUploaderRef.current?.startRecording();
+      }
+      return !currentIsRecording;
+    });
+  }, []);
 
   useEffect(() => {
-    if (copied) {
-      const timer = setTimeout(() => setCopied(false), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [copied]);
+    // @ts-ignore
+    const removeListener = window.electronAPI?.on('shortcut-triggered', handleShortcut);
+
+    return () => {
+      // @ts-ignore
+      removeListener?.();
+    };
+  }, [handleShortcut]);
 
   useEffect(() => {
     if (isLoading) {
@@ -405,7 +426,7 @@ export default function App() {
     }
   };
 
-  const transcribeNow = useCallback(async (file: File, bypassCache = false) => {
+  const transcribeNow = useCallback(async (file: File, bypassCache = false, source: 'ui' | 'shortcut' = 'ui') => {
     if (!file) {
       handleError('没有提供音频文件。');
       return;
@@ -429,13 +450,13 @@ export default function App() {
       setLoadingMessage(message);
     };
 
+    let finalTranscription: string = '';
+    let originalTranscription: string | undefined;
+    let finalLanguage: string = '';
+
     try {
       const hash = await getFileHash(file);
       const cachedResult = bypassCache ? null : await getCachedTranscription(hash);
-
-      let finalTranscription: string;
-      let originalTranscription: string | undefined;
-      let finalLanguage: string;
 
       if (cachedResult) {
         finalTranscription = cachedResult.transcription;
@@ -470,9 +491,10 @@ export default function App() {
           finalLanguage = result.detectedLanguage;
           finalTranscription = originalTranscription;
 
-          console.log('Checking LLM correction conditions...');
-          console.log('LLM API Key:', llmApiKey ? '******' : 'Not set');
-          console.log('LLM Prompt:', llmPrompt || 'Not set');
+          console.log('--- LLM Correction Check ---');
+          console.log('LLM API Key set:', !!llmApiKey);
+          console.log('LLM Prompt set:', !!llmPrompt);
+          console.log('Original transcription available:', !!originalTranscription);
 
           if (llmApiKey && llmPrompt && originalTranscription) {
             onProgress('正在使用 LLM 修正结果...');
@@ -491,7 +513,7 @@ export default function App() {
               handleError(`LLM 修正失败: ${llmError instanceof Error ? llmError.message : String(llmError)}`);
             }
           } else {
-            console.log('Skipping LLM correction because API Key, Prompt or original transcription is not set.');
+            console.log('Skipping LLM correction.');
           }
 
           if (originalTranscription) {
@@ -555,6 +577,10 @@ export default function App() {
       const endTime = Date.now();
       const duration = (endTime - localStartTime) / 1000;
       setElapsedTime(duration);
+      if (source === 'shortcut' && finalTranscription) {
+        // @ts-ignore
+        window.electronAPI?.send('paste-text', finalTranscription);
+      }
     }
   }, [context, language, enableItn, autoCopy, compressionLevel, handleError, transcriptionMode, transcription, apiProvider, modelScopeApiUrl, bailianApiKey, llmProvider, llmBaseUrl, llmModelName, llmApiKey, llmPrompt]);
 
@@ -597,12 +623,28 @@ export default function App() {
     }
   }, [audioFile, transcribeNow]);
 
-  useEffect(() => {
+useEffect(() => {
     if (transcribeAfterRecording && audioFile && !isRecording) {
       setTranscribeAfterRecording(false);
-      transcribeNow(audioFile);
+      transcribeNow(audioFile, false, 'shortcut');
     }
   }, [transcribeAfterRecording, audioFile, isRecording, transcribeNow]);
+
+useEffect(() => {
+    if (isRecording) {
+      // @ts-ignore
+      window.electronAPI?.send('show-overlay');
+      // @ts-ignore
+      window.electronAPI?.send('update-overlay', {
+        isRecording: true,
+        startTime: Date.now(),
+        theme: theme
+      });
+    } else {
+      // @ts-ignore
+      window.electronAPI?.send('hide-overlay');
+    }
+  }, [isRecording, theme]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -911,6 +953,8 @@ export default function App() {
         canInstall={!!installPrompt}
         onInstallApp={handleInstallApp}
         disabled={isLoading}
+        shortcut={shortcut}
+        setShortcut={setShortcut}
       />
        {isPipActive && pipContainer && createPortal(
         <PipView

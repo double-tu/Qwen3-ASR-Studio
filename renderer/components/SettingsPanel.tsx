@@ -41,6 +41,8 @@ interface SettingsPanelProps {
   disabled?: boolean;
   canInstall: boolean;
   onInstallApp: () => void;
+  shortcut: string;
+  setShortcut: (shortcut: string) => void;
 }
 
 const ToggleSwitch: React.FC<{ enabled: boolean; onChange: (enabled: boolean) => void; disabled?: boolean; id: string; }> = ({ enabled, onChange, disabled, id }) => {
@@ -125,6 +127,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   disabled,
   canInstall,
   onInstallApp,
+  shortcut,
+  setShortcut,
 }) => {
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
   const [isConfirmingRestore, setIsConfirmingRestore] = useState(false);
@@ -265,6 +269,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <div className="flex items-center gap-1 p-1 rounded-lg bg-base-100 border border-base-300">
                 {Object.values(CompressionLevel).map((level) => (<button key={level} onClick={() => setCompressionLevel(level)} disabled={disabled} className={`px-2 py-1 text-sm font-medium rounded-md transition-colors ${compressionLevel === level ? 'bg-brand-primary text-white' : 'hover:bg-base-300'}`}>{compressionLevelDisplayNames[level]}</button>))}
               </div>
+            </div>
+            <hr className="border-base-300" />
+            <div>
+              <label htmlFor="shortcut-setting" className="text-base font-medium">
+                输入法模式快捷键
+                <p className="text-sm text-content-200 font-normal">设置一个全局快捷键来启动/停止录音。</p>
+              </label>
+              <input
+                id="shortcut-setting"
+                type="text"
+                value={shortcut}
+                onChange={(e) => setShortcut(e.target.value)}
+                disabled={disabled}
+                placeholder="例如：Alt+Q"
+                className="mt-2 w-full px-3 py-2 text-sm rounded-md shadow-sm bg-base-100 border border-base-300 text-content-100 placeholder-content-200 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary disabled:opacity-60"
+              />
             </div>
           </div>
         );

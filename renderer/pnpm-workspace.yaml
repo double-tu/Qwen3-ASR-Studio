@@ -1,0 +1,4 @@
+ignoredBuiltDependencies:
+  - bufferutil
+  - esbuild
+  - msw
